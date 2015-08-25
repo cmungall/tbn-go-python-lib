@@ -67,6 +67,9 @@ def list_all_cls(mgr, args):
             print("  SUPER: {:s} '{:s}'".format(s.id, s.label))
         for s in c.svf_superclasses(partOf):
             print("  PARTOF: {:s} '{:s}'".format(str(s), s.label))
+        for (p,fillers) in c.svf_superclass_map().items():
+            for filler in fillers:
+                print("    {:s} {:s}".format(str(p), str(filler)))
 
 def list_all_individual(mgr, args):
     for i in mgr.all_individual():

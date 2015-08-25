@@ -221,13 +221,30 @@ class OWLClass(OWLObject):
         return self.manager.map_to_class_expressions(self.rdfgraph().objects(self.uriref, RDFS.subClassOf))
 
     def svf_superclasses(self, p):
+        """
+        Given C P returns D, where C SubClassOf P some D
+        """
         g = self.rdfgraph()
         vs = []
         for s in g.objects(self.uriref, RDFS.subClassOf):
-            if (s, OWL.onProperty, p) in g:
+            if (s, OWL.onProperty, p) in g and (s, OWL.someValuesFrom, None) in g:
                  vs.append(self.manager.get_cls(g.value(s, OWL.someValuesFrom, None)))
-        
         return vs
+
+    def svf_superclass_map(self):
+        """
+        Given C returns a map P=>D*, where C SubClassOf P some D
+        """
+        g = self.rdfgraph()
+        pmap = {}
+        for s in g.objects(self.uriref, RDFS.subClassOf):
+            if (s, OWL.onProperty, None) in g and (s, OWL.someValuesFrom, None) in g:
+                p = self.manager.get_property(g.value(s, OWL.onProperty, None))
+                filler = self.manager.get_cls(g.value(s, OWL.someValuesFrom, None))
+                if not(p.id in pmap):
+                    pmap[p.id] = []
+                pmap[p.id].append(filler)
+        return pmap
 
 class OWLIndividual(OWLObject):
 
