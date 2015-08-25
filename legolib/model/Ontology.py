@@ -12,15 +12,22 @@ from rdflib.namespace import RDFS
 from rdflib.namespace import OWL
 
 OBO = Namespace('http://purl.obolibrary.org/obo/')
+OIO = Namespace('http://www.geneontology.org/formats/oboInOwl#')
 
 class OntologyManager:
+    """
+    An OntologyManager is a facade on top of an rdflib graph. The Objects returned from this API are thin wrappers that delegate calls back to rdflib
+    """
+
     def __init__(self, rdfg=None):
         self.graph = rdfg
         self.prefix_map = {}
         self.reverse_prefix_map = {}
 
         # Note: punning is supported; the same URI can be
-        # in different maps
+        # in different maps.
+        # Only 3 types for now.
+        # TBD: conflate all 3 property types?
         self.object_map = {
             'o' : {},
             'c' : {},
@@ -65,6 +72,7 @@ class OntologyManager:
     def all_property(self):
         g = self.graph
         ps = []
+        # TBD: APs, DPs?
         for p in g.subjects(RDF.type, OWL.ObjectProperty):
             ps.append(self.get_property(p))
         return ps
@@ -89,6 +97,7 @@ class OntologyManager:
         """
         for every non-blank node, translate the URIRef to an OWLClass
         """
+        # maybe I should let go of latent lispiness and use list comprehensions...
         m2c = lambda uriref : self.get_cls(uriref)
         return map(m2c, filter(is_not_bnode, refs))
 
@@ -101,6 +110,12 @@ class OntologyManager:
 
 
 class OWLObject:
+    """
+    Abstract superclass of all OWL Objects.
+
+    Note that the OWLObject contains only a reference to an ontology manager, plus
+    a reference to the rdflib.URIRef object. All calls to access information are delegated.
+    """
     def __init__(self, mgr, uriref):    
         self.uriref = uriref
         self.manager = mgr
@@ -126,6 +141,9 @@ class OWLObject:
         return id
 
     def ann(self, p, default=None):
+        """
+        Single-valued annotation
+        """
         g = self.rdfgraph()
         uriref = self.uriref
         vs = list(g.objects(uriref, p))
@@ -133,6 +151,14 @@ class OWLObject:
             return default
         else:
             return str(vs[0].value)
+
+    def anns(self, p, default=None):
+        """
+        Multi-valued annotation
+        """
+        g = self.rdfgraph()
+        uriref = self.uriref
+        return [v.value for v in g.objects(uriref, p)]
 
     def label(self, default=None):
         """
@@ -166,6 +192,13 @@ class OWLObject:
         TODO: make the AP configurable
         """
         return self.ann(OBO.IAO_0000115, default)
+
+    # TODO: make this a property?
+    def exactSynonyms(self):
+        """
+        Returns the exact synonyms for the object
+        """
+        return self.anns(OIO.hasExactSynonym)
         
 
 

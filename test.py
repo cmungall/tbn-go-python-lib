@@ -29,6 +29,8 @@ def main():
         print("{:s} '{:s}' TR: '{:b}'".format(p.id, p.label(""), p.is_transitive))
     for c in mgr.all_cls():
         print("{:s} '{:s}' DEF: '{:s}'".format(c.id, c.label(""), c.definition("")))
+        for s in c.exactSynonyms():
+            print("  AKA: {:s}".format(s))
         for s in c.superclasses():
             print("  SUPER: {:s} '{:s}'".format(s.id, s.label("")))
         for s in c.svf_superclasses(partOf):
