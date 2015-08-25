@@ -3,3 +3,4 @@ CEPH: http://purl.obolibrary.org/obo/CEPH_
 UBERON: http://purl.obolibrary.org/obo/UBERON_
 RO: http://purl.obolibrary.org/obo/RO_
 BFO: http://purl.obolibrary.org/obo/BFO_
+GOMODEL: http://model.geneontology.org/

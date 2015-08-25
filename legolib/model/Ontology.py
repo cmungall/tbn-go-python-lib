@@ -39,6 +39,10 @@ class OntologyManager:
         f = open(fn, 'r') 
         self.prefix_map = yaml.load(f)
 
+    def sync_with_rdfgraph(self):
+        for k in self.object_map:
+            self.object_map[k] = {}
+
     def get_object(self,owltype, objref):
         m = self.object_map[owltype]
         k = str(objref)
@@ -121,7 +125,10 @@ class OWLObject:
         self.manager = mgr
 
     def __str__(self):
-        return self.id
+        if self.label:
+            return '{:s} "{:s}"'.format(self.id, self.label)
+        else:
+            return self.id
 
     def rdfgraph(self):
         return self.manager.graph
@@ -160,6 +167,7 @@ class OWLObject:
         uriref = self.uriref
         return [v.value for v in g.objects(uriref, p)]
 
+    @property
     def label(self, default=None):
         """
         Returns the label used for the class.
@@ -169,6 +177,7 @@ class OWLObject:
         """
         return self.ann(RDFS.label, default)
 
+    @property
     def preflabel(self, default=None):
         g = self.rdfgraph()
         uriref = self.uriref
@@ -182,6 +191,7 @@ class OWLObject:
         else:
             return labeltups[0][1]
 
+    @property
     def definition(self, default=None):
         """
         Returns the definition used for the class.
