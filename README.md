@@ -4,5 +4,7 @@ In order to do this, it incorporates the beginnings of a generic OWL ontology li
 
 These two projects may soon be split.
 
+PACKAGE NAMES, APIS ETC ALL SUBJECT TO CHANGE!!
+
 
 
