@@ -2,24 +2,35 @@ __author__ = 'cjm'
 
 import logging
 
+import yaml
 import rdflib
 from rdflib import Namespace
 from rdflib import BNode
+from rdflib import Literal
 from rdflib.namespace import RDF
 from rdflib.namespace import RDFS
 from rdflib.namespace import OWL
+
+OBO = Namespace('http://purl.obolibrary.org/obo/')
 
 class OntologyManager:
     def __init__(self, rdfg=None):
         self.graph = rdfg
         self.prefix_map = {}
         self.reverse_prefix_map = {}
+
+        # Note: punning is supported; the same URI can be
+        # in different maps
         self.object_map = {
             'o' : {},
             'c' : {},
             'p' : {},
             'i' : {}
         }
+
+    def load_prefix_map(self, fn):
+        f = open(fn, 'r') 
+        self.prefix_map = yaml.load(f)
 
     def get_object(self,owltype, objref):
         m = self.object_map[owltype]
@@ -48,18 +59,45 @@ class OntologyManager:
             cs.append(self.get_cls(c))
         return cs
 
+    def all_individual(self):
+        return map(self.get_individual, self.graph.subjects(RDF.type, OWL.NamedIndividual))
+
+    def all_property(self):
+        g = self.graph
+        ps = []
+        for p in g.subjects(RDF.type, OWL.ObjectProperty):
+            ps.append(self.get_property(p))
+        return ps
+
     def get_cls(self, ref):
         return self.get_object('c', ref)
+
+    def get_property(self, ref):
+        return self.get_object('p', ref)
+
     def get_individual(self, ref):
         return self.get_object('i', ref)
+
+    def get_fact(self, t):
+        return OWLFact(self, t)
 
     def get_owltypes(self, obj):
         for s in self.graph.objects(obj, RDF.type):
             obj.add_superclass(s)
 
     def reduce_to_classes(self, refs):
+        """
+        for every non-blank node, translate the URIRef to an OWLClass
+        """
         m2c = lambda uriref : self.get_cls(uriref)
         return map(m2c, filter(is_not_bnode, refs))
+
+    def reduce_to_facts(self, triples):
+        """
+        triples to facts. TODO: hash
+        """
+        m2c = lambda t : self.get_fact(t)
+        return map(m2c, filter(is_ope, triples))
 
 
 class OWLObject:
@@ -67,11 +105,25 @@ class OWLObject:
         self.uriref = uriref
         self.manager = mgr
 
+    def __str__(self):
+        return self.id
+
     def rdfgraph(self):
         return self.manager.graph
 
-    def curie(self, cmap={}):
-        return
+    @property
+    def id(self):
+        """
+        Contracts the URI into a short prefixed ID, aka CURIE
+        """
+        uri = "{:s}".format(str(self.uriref))
+        id = uri
+        for prefix,uribase in self.manager.prefix_map.items():
+            if (uri.startswith(uribase)):
+                new_id = uri.replace(uribase,prefix+":")
+                if id is None or len(new_id) < len(id):
+                    id = new_id
+        return id
 
     def ann(self, p, default=None):
         g = self.rdfgraph()
@@ -83,6 +135,12 @@ class OWLObject:
             return str(vs[0].value)
 
     def label(self, default=None):
+        """
+        Returns the label used for the class.
+
+        This assumes maximum one label; will pick
+        arbitrary label if multiple available
+        """
         return self.ann(RDFS.label, default)
 
     def preflabel(self, default=None):
@@ -97,16 +155,21 @@ class OWLObject:
                 return labels[0]
         else:
             return labeltups[0][1]
+
+    def definition(self, default=None):
+        """
+        Returns the definition used for the class.
+
+        This assumes maximum one definition; will pick
+        arbitrary label if multiple available.
+
+        TODO: make the AP configurable
+        """
+        return self.ann(OBO.IAO_0000115, default)
         
-    def facts_out():
-        return
-    def facts_in():
-        return
 
 
 class OWLClass(OWLObject):
-    def __str__(self):
-        return self.uriref
 
     def superclasses(self):
         return self.manager.reduce_to_classes(self.rdfgraph().objects(self.uriref, RDFS.subClassOf))
@@ -124,13 +187,53 @@ class OWLClass(OWLObject):
         return vs
 
 class OWLIndividual(OWLObject):
-    def __str__(self):
-        return self.uriref+' "'+str(self.types)+'"'
+
+    #def __str__(self):
+    #    return "{:s} :: {:s}".format(self.id, ",".join(map(str,self.types())))
+
+    def types(self):
+        types = [t for t in self.rdfgraph().objects(self.uriref, RDF.type) if t != OWL.NamedIndividual]
+        return self.manager.reduce_to_classes(types)
+
+    def type_expressions(self):
+        return self.manager.map_to_class_expression(self.rdfgraph().objects(self.uriref, RDF.type))
+
+    def individuals_out(self, p=None):
+        return self.manager.map_to_class_expression(self.rdfgraph().objects(self.uriref, p))
+    def individuals_in(self, p=None):
+        return self.manager.map_to_class_expression(self.rdfgraph().subjects(p, self.uriref))
+
+    def facts_out(self, p=None):
+        return self.manager.reduce_to_facts(self.rdfgraph().triples((self.uriref, p, None)))
+    def facts_in(self, p=None):
+        return self.manager.reduce_to_facts(self.rdfgraph().triples((None, p, self.uriref)))
     
 
 class OWLProperty(OWLObject):
+
+    @property
+    def is_transitive(self):
+        return OWL.TransitiveProperty in self.rdfgraph().objects(self.uriref, RDF.type);
+
+class OWLFact(OWLObject):
+    def __init__(self, mgr, t):
+        self.manager = mgr
+        self._s = t[0]
+        self._p = t[1]
+        self._o = t[2]
+        self.triple = t
+    
+    def s(self):
+        return self.manager.get_individual(self._s)
+
+    def p(self):
+        return self.manager.get_property(self._p)
+
+    def o(self):
+        return self.manager.get_individual(self._o)
+
     def __str__(self):
-        return self.uriref
+        return "{:s}-->[{:s}]-->{:s}".format(str(self.s()), str(self.p()), str(self.o()))
 
 def is_bnode(uriref):
     return isinstance(uriref, BNode)
@@ -138,3 +241,10 @@ def is_bnode(uriref):
 def is_not_bnode(uriref):
     return not(is_bnode(uriref))
         
+def is_ope(t):
+    return not(is_not_ope(t))
+
+def is_not_ope( t ):
+    (s,p,o) = t
+    return p == RDF.type or isinstance(o,Literal)
+

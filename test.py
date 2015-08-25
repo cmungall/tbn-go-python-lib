@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-__author__ = 'nlw'
+__author__ = 'cjm'
 
 import argparse
 import logging
@@ -23,11 +23,14 @@ def main():
     print("Welcome:")
     p = OWLParser()
     mgr = p.parse("examples/ceph.owl")
+    mgr.load_prefix_map("examples/curies.yaml")
     print(mgr)
+    for p in mgr.all_property():
+        print("{:s} '{:s}' TR: '{:b}'".format(p.id, p.label(""), p.is_transitive))
     for c in mgr.all_cls():
-        print("{:s} '{:s}'".format(str(c), c.label("")))
+        print("{:s} '{:s}' DEF: '{:s}'".format(c.id, c.label(""), c.definition("")))
         for s in c.superclasses():
-            print("  SUPER: {:s} '{:s}'".format(str(s), s.label("")))
+            print("  SUPER: {:s} '{:s}'".format(s.id, s.label("")))
         for s in c.svf_superclasses(partOf):
             print("  PARTOF: {:s} '{:s}'".format(str(s), s.label("")))
 
