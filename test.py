@@ -26,15 +26,20 @@ def main():
     mgr.load_prefix_map("examples/curies.yaml")
     print(mgr)
     for p in mgr.all_property():
-        print("{:s} '{:s}' TR: '{:b}'".format(p.id, p.label(""), p.is_transitive))
+        print("{:s} '{:s}' TR: '{:b}'".format(p.id, p.label, p.is_transitive))
     for c in mgr.all_cls():
-        print("{:s} '{:s}' DEF: '{:s}'".format(c.id, c.label(""), c.definition("")))
-        for s in c.exactSynonyms():
+        if not c.label:
+            continue
+        if c.definition:
+            print("{:s} '{:s}' DEF: '{:s}'".format(c.id, c.label, c.definition))
+        else:
+            print("{:s} '{:s}'".format(c.id, c.label))
+        for s in c.exactSynonyms:
             print("  AKA: {:s}".format(s))
         for s in c.superclasses():
-            print("  SUPER: {:s} '{:s}'".format(s.id, s.label("")))
+            print("  SUPER: {:s} '{:s}'".format(s.id, s.label))
         for s in c.svf_superclasses(partOf):
-            print("  PARTOF: {:s} '{:s}'".format(str(s), s.label("")))
+            print("  PARTOF: {:s} '{:s}'".format(str(s), s.label))
 
 
 if __name__ == "__main__":

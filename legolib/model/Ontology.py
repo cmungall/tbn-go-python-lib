@@ -7,6 +7,7 @@ import rdflib
 from rdflib import Namespace
 from rdflib import BNode
 from rdflib import Literal
+from rdflib import URIRef
 from rdflib.namespace import RDF
 from rdflib.namespace import RDFS
 from rdflib.namespace import OWL
@@ -35,7 +36,21 @@ class OntologyManager:
             'i' : {}
         }
 
+        # modeled after SciGraph categories map
+        self.categories_map = {
+            OWL.Class : 'class',
+            OWL.NamedIndividual : 'individual'
+        }
+
+        # TODO: do not use OIO as default
+        self.synonym_properties = [ OIO.hasExactSynonym, OIO.hasRelatedSynonym, OIO.hasBroadSynonym, OIO.hasNarrowSynonym  ]
+
+        self.definition_property = OBO.IAO_0000115
+
     def load_prefix_map(self, fn):
+        """
+        Loads curie prefixes from a YAML file
+        """
         f = open(fn, 'r') 
         self.prefix_map = yaml.load(f)
 
@@ -43,7 +58,26 @@ class OntologyManager:
         for k in self.object_map:
             self.object_map[k] = {}
 
-    def get_object(self,owltype, objref):
+    def expand_curie(self, k):
+        toks = k.split(":")
+        if (len(toks) == 2):
+            pfx = toks[0]
+            if pfx in self.prefix_map:
+                return self.prefix_map[pfx] + toks[1]
+            else:
+                return k
+        else:
+            return k
+
+    def get_uriref(self, k):
+        if isinstance(k, str):
+            uri = self.expand_curie(k)
+            return URIRef(uri)
+        else:
+            return k
+
+    def get_object(self,owltype, k):
+        objref = self.get_uriref(k)
         m = self.object_map[owltype]
         k = str(objref)
         if (k in m):
@@ -201,20 +235,26 @@ class OWLObject:
 
         TODO: make the AP configurable
         """
-        return self.ann(OBO.IAO_0000115, default)
+        return self.ann(self.manager.definition_property, default)
 
-    # TODO: make this a property?
-    def exactSynonyms(self):
+    @property
+    def synonyms(self):
         """
         Returns the exact synonyms for the object
         """
-        return self.anns(OIO.hasExactSynonym)
+        syns = []
+        for p in self.manager.synonym_properties:
+            syns += self.anns(p)
+        return syns
         
 
 
 class OWLClass(OWLObject):
 
     def superclasses(self):
+        """
+        Returns asserted named superclasses
+        """
         return self.manager.reduce_to_classes(self.rdfgraph().objects(self.uriref, RDFS.subClassOf))
 
     def superclass_expressions(self):
@@ -275,7 +315,22 @@ class OWLProperty(OWLObject):
     def is_transitive(self):
         return OWL.TransitiveProperty in self.rdfgraph().objects(self.uriref, RDF.type);
 
-class OWLFact(OWLObject):
+class OWLAxiom(OWLObject):
+    """
+    OWL Axiom
+    """
+    def __init__(self, mgr):
+        self.manager = mgr
+        self._annotations = []
+
+    @property
+    def annotations(self):
+        return self._annotations
+
+class OWLFact(OWLAxiom):
+    """
+    Aka OWL ObjectProperty
+    """
     def __init__(self, mgr, t):
         self.manager = mgr
         self._s = t[0]
@@ -283,19 +338,25 @@ class OWLFact(OWLObject):
         self._o = t[2]
         self.triple = t
     
+    @property
     def s(self):
         return self.manager.get_individual(self._s)
 
+    @property
     def p(self):
         return self.manager.get_property(self._p)
 
+    @property
     def o(self):
         return self.manager.get_individual(self._o)
 
     def __str__(self):
-        return "{:s}-->[{:s}]-->{:s}".format(str(self.s()), str(self.p()), str(self.o()))
+        return "{:s}-->[{:s}]-->{:s}".format(str(self.s), str(self.p), str(self.o))
 
 def is_bnode(uriref):
+    """
+    True if uriref is a blank node
+    """
     return isinstance(uriref, BNode)
 
 def is_not_bnode(uriref):
