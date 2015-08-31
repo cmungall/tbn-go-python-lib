@@ -28,14 +28,20 @@ class OntologyTestCase(unittest.TestCase):
         return
 
     def test_all(self):
+        num_axiom_anns = 0
         for i in self.manager.all_individual():
             show(i)
+            for f in i.facts_out():
+                anns = f.annotations
+                num_axiom_anns += len(anns)
+        self.assertTrue(num_axiom_anns > 0)
 
 
 def show(i):
     print("IND: {:s}".format(str(i)))
     for f in i.facts_out():
-        print("  FACT: {:s}".format(str(f)))
+        anns = f.annotations
+        print("  FACT: {:s} ANNS:{}".format(str(f), str(anns)))
 
 
 if __name__ == '__main__':

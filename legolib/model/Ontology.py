@@ -392,6 +392,19 @@ class OWLFact(OWLAxiom):
     def o(self):
         return self.manager.get_individual(self._o)
 
+    @property
+    def annotations(self):
+        g = self.rdfgraph()
+        siri = self.s.uriref
+        piri = self.p.uriref
+        oiri = self.o.uriref
+        axrefs = []
+        for axref in g.subjects(OWL.annotatedSource, siri):
+            if (axref,OWL.annotatedTarget,oiri) in g:
+                if (axref,OWL.annotatedProperty,piri) in g:
+                    axrefs.append(axref)
+        return axrefs
+
     def __str__(self):
         return "{:s}-->[{:s}]-->{:s}".format(str(self.s), str(self.p), str(self.o))
 
