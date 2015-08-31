@@ -4,6 +4,7 @@ import logging
 
 import yaml
 import rdflib
+from legolib.reasoner.BasicReasoner import BasicReasoner
 from rdflib import Namespace
 from rdflib import BNode
 from rdflib import Literal
@@ -24,6 +25,7 @@ class OntologyManager:
         self.graph = rdfg
         self.prefix_map = {}
         self.reverse_prefix_map = {}
+        self._reasoner = None
 
         # Note: punning is supported; the same URI can be
         # in different maps.
@@ -127,10 +129,6 @@ class OntologyManager:
     def get_fact(self, t):
         return OWLFact(self, t)
 
-    def get_owltypes(self, obj):
-        for s in self.graph.objects(obj, RDF.type):
-            obj.add_superclass(s)
-
     def reduce_to_classes(self, refs):
         """
         for every non-blank node, translate the URIRef to an OWLClass
@@ -146,6 +144,11 @@ class OntologyManager:
         m2c = lambda t : self.get_fact(t)
         return map(m2c, filter(is_ope, triples))
 
+    @property
+    def reasoner(self):
+        if not self._reasoner:
+            self._reasoner = BasicReasoner(self)
+        return self._reasoner
 
 class OWLObject:
     """
@@ -247,8 +250,6 @@ class OWLObject:
             syns += self.anns(p)
         return syns
         
-
-
 class OWLClass(OWLObject):
 
     def superclasses(self):
@@ -256,6 +257,28 @@ class OWLClass(OWLObject):
         Returns asserted named superclasses
         """
         return self.manager.reduce_to_classes(self.rdfgraph().objects(self.uriref, RDFS.subClassOf))
+
+    def subclasses(self):
+        """
+        Returns asserted named subclasses
+        """
+        return self.manager.reduce_to_classes(self.rdfgraph().subjects(RDFS.subClassOf, self.uriref))
+
+    def individuals(self):
+        """
+        Returns asserted instances
+        """
+        return [self.manager.get_individual(x) for x in self.rdfgraph().subjects(RDF.type, self.uriref)]
+
+    def inferred_individuals(self):
+        """
+        Returns inferred individuals. TODO: use more efficient method
+        """
+        inds = []
+        for x in self.manager.all_individual():
+            if self in x.inferred_types():
+                inds.append(x) 
+        return inds
 
     def superclass_expressions(self):
         return self.manager.map_to_class_expressions(self.rdfgraph().objects(self.uriref, RDFS.subClassOf))
@@ -286,14 +309,23 @@ class OWLClass(OWLObject):
                 pmap[p.id].append(filler)
         return pmap
 
-class OWLIndividual(OWLObject):
+    def inferred_superclasses(self):
+        """
+        transitive closure of superclasses
+        """
+        return self.manager.reasoner.inferred_superclasses(self)
 
-    #def __str__(self):
-    #    return "{:s} :: {:s}".format(self.id, ",".join(map(str,self.types())))
+class OWLIndividual(OWLObject):
+    """
+    TODO: Individual vs NamedIndividual
+    """
 
     def types(self):
         types = [t for t in self.rdfgraph().objects(self.uriref, RDF.type) if t != OWL.NamedIndividual]
         return self.manager.reduce_to_classes(types)
+
+    def inferred_types(self):
+        return self.manager.reasoner.inferred_superclasses(self.types)
 
     def type_expressions(self):
         return self.manager.map_to_class_expression(self.rdfgraph().objects(self.uriref, RDF.type))
@@ -315,6 +347,16 @@ class OWLProperty(OWLObject):
     def is_transitive(self):
         return OWL.TransitiveProperty in self.rdfgraph().objects(self.uriref, RDF.type);
 
+    @property
+    def is_top(self):
+        return self.uriref == OWL.topObjectProperty
+
+    def superproperties(self):
+        """
+        Returns asserted superproperties
+        """
+        return [self.manager.get_property(p) for p in self.rdfgraph().objects(self.uriref, RDFS.subPropertyOf)]
+
 class OWLAxiom(OWLObject):
     """
     OWL Axiom
@@ -329,7 +371,7 @@ class OWLAxiom(OWLObject):
 
 class OWLFact(OWLAxiom):
     """
-    Aka OWL ObjectProperty
+    Aka OWL ObjectPropertyAssertion
     """
     def __init__(self, mgr, t):
         self.manager = mgr
