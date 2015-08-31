@@ -26,7 +26,7 @@ class NetworkExporter(Exporter):
         for i in o.all_individual():
             self.add_node(i)
             for f in i.facts_out():
-                self.add_edge(i.s,i.o,i.p)
+                self.add_edge(f.s, f.o, f.p)
             
     def add_node(self, n):
         if n.label:
