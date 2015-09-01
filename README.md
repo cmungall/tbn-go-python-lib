@@ -12,6 +12,8 @@ types. For that we recommend:
  * jython + the OWLAPI. See LINK TO DAVID'S EXAMPLES HERE
  * FuXi
 
+To see the capabilities of this library, see the tests/ directory
+
 PACKAGE NAMES, APIS ETC ALL SUBJECT TO CHANGE!!
 
 
