@@ -14,6 +14,17 @@ types. For that we recommend:
 
 To see the capabilities of this library, see the tests/ directory
 
+Some typical use cases this library is intended to address:
+
+ * produce basic ontology reports (e.g. table of IDs plus labels)
+ * Translate ontology representation to a networkx graph using a subset of relations (ObjectProperties)
+ * Analyze LEGO models
+
+What it won't do:
+
+ * parse GAFs
+ * complex OWL processing
+
 PACKAGE NAMES, APIS ETC ALL SUBJECT TO CHANGE!!
 
 
