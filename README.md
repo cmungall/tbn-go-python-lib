@@ -1,12 +1,16 @@
-This module was written for processing of GO "lego" models, authored using the Noctua tool
+Library for working with OWL, with an emphasis on the subset of OWL
+required by users of GO and OBO ontologies, plus convenience methods.
 
-In order to do this, it incorporates the beginnings of a generic OWL
-ontology library. Note that for fully-fledged OWL processing you will
-want to use jython + OWLAPI. This library is intended to cover roughly
-the obo-basic subset of an ontology, as typically used in
-bioinformatics applications.
+Currently what is supported is:
 
-The repo may potentially split: the OWL part should be relatively generic
+ * The "OBO Basic" subset of OWL
+ * Individuals and connections between them (LEGO/Noctua models)
+
+It is not intended for performing advanced processing of all OWL axiom
+types. For that we recommend:
+
+ * jython + the OWLAPI. See LINK TO DAVID'S EXAMPLES HERE
+ * FuXi
 
 PACKAGE NAMES, APIS ETC ALL SUBJECT TO CHANGE!!
 
