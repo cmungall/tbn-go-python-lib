@@ -26,20 +26,37 @@ class OntologyTestCase(unittest.TestCase):
     def tearDown(self):
         return
 
+    def test_cls(self):
+        id = "CEPH:0000308"
+        app = self.manager.get_cls(id)
+        show(app)
+        sids = [s.id for s in app.inferred_superclasses()]
+        print(sids)
+        self.assertTrue(id in sids, "expected reflexivity")
+        self.assertTrue("UBERON:0000026" in sids)
+        self.assertTrue("UBERON:0000475" in sids)
+        self.assertTrue("UBERON:0010000" in sids)
+        sids = [s.id for s in app.inferred_subclasses()]
+        self.assertTrue(id in sids, "expected reflexivity")
+        self.assertTrue("CEPH:0000256" in sids)
+        self.assertTrue("CEPH:0000015" in sids)
+        self.assertTrue("CEPH:0000017" in sids, "expected transitivity")
+        
+
     def test_all(self):
         for c in self.manager.all_cls():
             show(c)
 
-        self.assertTrue(False)
 
 def show(c):
     if not c.label:
         return
     print("{:s} '{:s}'".format(c.id, c.label))
     for s in c.superclasses():
-        print("  DIRECT SUPER: {:s} '{:s}'".format(s.id, s.label))
+        print("  DIRECT SUPER: {:s}".format(s.id))
+        #print("  DIRECT SUPER: {:s} '{:s}'".format(s.id, str(s.label)))
     for s in c.inferred_superclasses():
-        print("  INFERRED SUPER: {:s} '{:s}'".format(s.id, s.label))
+        print("  INFERRED SUPER: {:s} '{:s}'".format(s.id, str(s.label)))
 
 
 if __name__ == '__main__':

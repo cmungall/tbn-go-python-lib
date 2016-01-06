@@ -1,3 +1,14 @@
+"""
+
+This modules provides objects for working with OWL Ontologies.
+
+The module is a facade over an RDF graph, provided by rdflib. The
+Objects in this module are simple delegators that hold a reference to
+either a URIRef (in the case of classes, properties and individuals)
+or a triple (in the case of axioms).
+
+"""
+
 __author__ = 'cjm'
 
 import logging
@@ -16,9 +27,30 @@ from rdflib.namespace import OWL
 OBO = Namespace('http://purl.obolibrary.org/obo/')
 OIO = Namespace('http://www.geneontology.org/formats/oboInOwl#')
 
+## utility methods
+def annotations_to_dict(anns):
+    dict = {}
+    for ann in anns:
+        pid = ann.prop.id
+        if not pid in dict:
+            dict[pid] = []
+        dict[pid].append(ann.str_value)
+    return dict
+
+def as_uriref(obj):
+    if isinstance(obj,URIRef):
+        return obj
+    elif isinstance(obj, OWLObject):
+        return obj.uriref
+    else:
+        return None
+    
+
 class OntologyManager:
     """
-    An OntologyManager is a facade on top of an rdflib graph. The Objects returned from this API are thin wrappers that delegate calls back to rdflib
+    An OntologyManager is a facade on top of an rdflib graph. The Objects returned from this API are thin wrappers that delegate calls back to rdflib.
+
+    TODO: split this into manager + ontology?
     """
 
     def __init__(self, rdfg=None):
@@ -95,11 +127,6 @@ class OntologyManager:
             m[k] = obj
             return obj
 
-
-    def add_object(self,obj):
-        obj.set_ontology(self)
-        self.object_map[str(obj)] = obj
-
     def all_cls(self):
         cs = []
         for c in self.graph.subjects(RDF.type, OWL.Class):
@@ -107,7 +134,7 @@ class OntologyManager:
         return cs
 
     def all_individual(self):
-        return map(self.get_individual, self.graph.subjects(RDF.type, OWL.NamedIndividual))
+        return [self.get_individual(i) for i in self.graph.subjects(RDF.type, OWL.NamedIndividual)]
 
     def all_property(self):
         g = self.graph
@@ -126,23 +153,23 @@ class OntologyManager:
     def get_individual(self, ref):
         return self.get_object('i', ref)
 
+    def get_annotation(self, p, v):
+        return OWLAnnotation(self, p, v)
+
     def get_fact(self, t):
         return OWLFact(self, t)
 
-    def reduce_to_classes(self, refs):
+    def reduce_to_classes(self, urirefs):
         """
         for every non-blank node, translate the URIRef to an OWLClass
         """
-        # maybe I should let go of latent lispiness and use list comprehensions...
-        m2c = lambda uriref : self.get_cls(uriref)
-        return map(m2c, filter(is_not_bnode, refs))
+        return [self.get_cls(uriref) for uriref in urirefs if not is_bnode(uriref)]
 
     def reduce_to_facts(self, triples):
         """
         triples to facts. TODO: hash
         """
-        m2c = lambda t : self.get_fact(t)
-        return map(m2c, filter(is_ope, triples))
+        return [self.get_fact(t) for t in triples if is_ope(t)]
 
     @property
     def reasoner(self):
@@ -205,14 +232,14 @@ class OWLObject:
         return [v.value for v in g.objects(uriref, p)]
 
     @property
-    def label(self, default=None):
+    def label(self):
         """
         Returns the label used for the class.
 
         This assumes maximum one label; will pick
         arbitrary label if multiple available
         """
-        return self.ann(RDFS.label, default)
+        return self.ann(RDFS.label)
 
     @property
     def preflabel(self, default=None):
@@ -251,6 +278,7 @@ class OWLObject:
         return syns
         
 class OWLClass(OWLObject):
+
 
     def superclasses(self):
         """
@@ -315,18 +343,27 @@ class OWLClass(OWLObject):
         """
         return self.manager.reasoner.inferred_superclasses(self)
 
+    def inferred_subclasses(self):
+        """
+        transitive closure of subclasses
+        """
+        return self.manager.reasoner.inferred_subclasses(self)
+
 class OWLIndividual(OWLObject):
     """
-    TODO: Individual vs NamedIndividual
+    Currently this represents any OWL Individual. May be split into distinct classes for named and anonymous
     """
 
+    @property
     def types(self):
         types = [t for t in self.rdfgraph().objects(self.uriref, RDF.type) if t != OWL.NamedIndividual]
         return self.manager.reduce_to_classes(types)
 
+    @property
     def inferred_types(self):
         return self.manager.reasoner.inferred_superclasses(self.types)
 
+    @property
     def type_expressions(self):
         return self.manager.map_to_class_expression(self.rdfgraph().objects(self.uriref, RDF.type))
 
@@ -336,12 +373,18 @@ class OWLIndividual(OWLObject):
         return self.manager.map_to_class_expression(self.rdfgraph().subjects(p, self.uriref))
 
     def facts_out(self, p=None):
-        return self.manager.reduce_to_facts(self.rdfgraph().triples((self.uriref, p, None)))
+        return self.manager.reduce_to_facts(self.rdfgraph().triples((self.uriref, as_uriref(p), None)))
     def facts_in(self, p=None):
-        return self.manager.reduce_to_facts(self.rdfgraph().triples((None, p, self.uriref)))
+        return self.manager.reduce_to_facts(self.rdfgraph().triples((None, as_uriref(p), self.uriref)))
     
 
 class OWLProperty(OWLObject):
+
+    """
+    Currently this represents any OWL ObjectProperty. May be split into distinct classes for different property types
+    """
+
+    # TODO: other characteristics
 
     @property
     def is_transitive(self):
@@ -359,7 +402,7 @@ class OWLProperty(OWLObject):
 
 class OWLAxiom(OWLObject):
     """
-    OWL Axiom
+    Any OWL Axiom
     """
     def __init__(self, mgr):
         self.manager = mgr
@@ -368,6 +411,41 @@ class OWLAxiom(OWLObject):
     @property
     def annotations(self):
         return self._annotations
+
+class OWLAnnotation(OWLObject):
+    """
+    property-value pair
+    """
+    def __init__(self, mgr, p, v):
+        self.manager = mgr
+        self.prop = mgr.get_property(p)
+        self.value = v
+
+    def __str__(self):
+        return '{:s} "{:s}"'.format(str(self.prop), str(self.value))
+
+    @property
+    def as_tuple(self):
+        return (self.prop, self.value)
+
+    @property
+    def value_as_individual(self):
+        if isinstance(self.value, URIRef):
+            return self.manager.get_individual(self.value)
+
+    @property
+    def value_as_id(self):
+        if isinstance(self.value, URIRef):
+            # TODO
+            tmpobj = OWLObject(self.manager, self.value)
+            return tmpobj.id
+
+    @property
+    def str_value(self):
+        if isinstance(self.value, Literal):
+            return self.value.value
+        else:
+            return self.value_as_id
 
 class OWLFact(OWLAxiom):
     """
@@ -393,7 +471,7 @@ class OWLFact(OWLAxiom):
         return self.manager.get_individual(self._o)
 
     @property
-    def annotations(self):
+    def axiomrefs(self):
         g = self.rdfgraph()
         siri = self.s.uriref
         piri = self.p.uriref
@@ -405,6 +483,17 @@ class OWLFact(OWLAxiom):
                     axrefs.append(axref)
         return axrefs
 
+    @property
+    def annotations(self):
+        anns = []
+        m = self.manager
+        g = m.graph
+        for axref in self.axiomrefs:
+            for (s,p,o) in g.triples((axref,None,None)):
+                if p not in [OWL.annotatedSource, OWL.annotatedTarget, OWL.annotatedProperty, RDF.type]:
+                  anns.append(m.get_annotation(p,o))
+        return anns
+
     def __str__(self):
         return "{:s}-->[{:s}]-->{:s}".format(str(self.s), str(self.p), str(self.o))
 
@@ -414,6 +503,7 @@ def is_bnode(uriref):
     """
     return isinstance(uriref, BNode)
 
+# deprecated
 def is_not_bnode(uriref):
     return not(is_bnode(uriref))
         

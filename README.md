@@ -27,5 +27,18 @@ What it won't do:
 
 PACKAGE NAMES, APIS ETC ALL SUBJECT TO CHANGE!!
 
+Proposed Refactor:
+
+Use the following set of packages:
+
+ * ontol
+    * Ontology.py
+    * OWLParser
+    * NetworkExporter => rename
+    * reasoner
+       * BasicReasoner
+ * lego
+    * Lego
+ * assoc
 
 

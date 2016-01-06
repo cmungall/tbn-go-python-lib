@@ -1,5 +1,6 @@
 import networkx as nx
 from networkx import write_yaml
+from legolib.model.Ontology import annotations_to_dict
 
 from legolib.export.Exporter import Exporter
 
@@ -26,7 +27,8 @@ class NetworkExporter(Exporter):
         for i in o.all_individual():
             self.add_node(i)
             for f in i.facts_out():
-                self.add_edge(f.s, f.o, f.p)
+                dict = annotations_to_dict(f.annotations)
+                self.add_edge(f.s, f.o, f.p, dict)
             
     def add_node(self, n):
         if n.label:
@@ -34,9 +36,9 @@ class NetworkExporter(Exporter):
         else:
             self._graph.add_node(n.id)
 
-    def add_edge(self, s,o,p):
+    def add_edge(self, s,o,p, dict={}):
         pid = p if isinstance(p,str) else p.id
-        self._graph.add_edge(s.id,o.id,type=pid)
+        self._graph.add_edge(s.id,o.id,dict,type=pid)
         #self._graph.add_edge(s.id,o.id,type=p.id)
 
     def export_yaml(self,fn=None):

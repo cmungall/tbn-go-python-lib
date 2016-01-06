@@ -2,5 +2,8 @@ OBO: http://purl.obolibrary.org/obo/
 CEPH: http://purl.obolibrary.org/obo/CEPH_
 UBERON: http://purl.obolibrary.org/obo/UBERON_
 RO: http://purl.obolibrary.org/obo/RO_
+GO: http://purl.obolibrary.org/obo/GO_
+ECO: http://purl.obolibrary.org/obo/ECO_
 BFO: http://purl.obolibrary.org/obo/BFO_
+CL: http://purl.obolibrary.org/obo/CL_
 GOMODEL: http://model.geneontology.org/
